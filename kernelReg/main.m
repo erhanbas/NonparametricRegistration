@@ -1,0 +1,95 @@
+% Rigid registration with mutual information using KDE
+% Algorithm first estimates the kernel density, then calculates the MI,
+% maximizes MI using direct search method
+% Erhan Bas
+% 02/25/10
+
+clear all;close all;clc
+
+% Rigid transformation model
+% R(y-t) = x
+dataType = 2;
+if dataType == 1
+    N1 = 500;
+    x = [5 0;0 3]*rand(2,N1);%-2.5;
+    theta = pi/9; 
+    tx = 8; ty = 4;
+    R = [cos(theta) sin(theta);-sin(theta) cos(theta)];
+    y = R'*x(:,1:1:end) + repmat([tx;ty],1,length(x));
+    N2 = length(y);
+    anisotropic = 1;
+    
+elseif dataType ==2
+    unregistered = imread('unreg.bmp');
+    registeredOriginal = imread('reg.bmp');
+    figure, subplot(211),imshow(unregistered),subplot(212), imshow(registeredOriginal);
+    I1 = edge(rgb2gray(unregistered),'canny',.4);
+    I2 = edge(rgb2gray(registeredOriginal),'canny',.4);
+    figure, subplot(211),imshow(I1),subplot(212), imshow(I2);
+    [x1 x2]=find(I1); x = [x2 x1]';
+    [y1 y2]=find(I2); y = [y2 y1]';
+    
+    y = y(:,1:6:end);
+    x = x(:,1:6:end);
+    
+    N2 = length(y);
+    anisotropic = 1;
+    %%
+    thetagt = -pi/9;
+    Rgt = [cos(thetagt) sin(thetagt);-sin(thetagt) cos(thetagt)];
+    tgt =(eye(2)-Rgt')*[128;128];
+    tgtx = tgt(1);
+    tgty = tgt(2);
+    
+%     tgt =[128;128];
+%     x2 = Rgt*(y+(Rgt'-eye(2))*repmat(tgt,1,length(y)));
+
+    x2 = Rgt*(y-repmat(tgt,1,length(y)));
+
+    figure,
+    plot(x(1,:),x(2,:),'.',x2(1,:),x2(2,:),'r.'), legend('x','xgt')
+    figure,
+    plot(x(1,:),x(2,:),'.',y(1,:),y(2,:),'r.'), legend('x','xgt')
+
+end
+figure,
+plot(x(1,:),x(2,:),'.',y(1,:),y(2,:),'r.'), legend('x','y')
+% matlabpool(4)
+%%
+if (1)
+    [sigma_optx,S_x] = fitkdeFast(x,anisotropic);
+    [sigma_opty,S_y] = fitkdeFast(y,anisotropic);
+    %     [sigma_opty,S_y] = fitkdeFast_back(y,anisotropic);
+    %%
+    scale=2;
+    tic
+    myfun = @(v) kdeopt2(v,y,x,S_x,S_y,anisotropic,scale);
+%     w2 = fminsearch(myfun,[0.5 1 1]);
+    init = [thetagt+.2*randn() tgt(1)+6*randn() tgt(2)+6*randn()];
+%     init = [thetagt tgt(1) tgt(2)];
+    w2 = fminsearch(myfun,init);
+    w2
+    wgt = [thetagt;tgt]
+%     realp = [theta t]
+    toc
+    %%
+    close all
+    figure,
+    plot(x(1,:),x(2,:),'.',y(1,:),y(2,:),'r.')
+    w=w2;
+    w = init;
+    the = w(1);
+    ttx = w(2);
+    tty = w(3);
+    Rest = [cos(the) sin(the);-sin(the) cos(the)];
+    xest = (Rest*(y - repmat([ttx;tty],1,length(y))));
+    figure,plot(xest(1,:),xest(2,:),'r.',x(1,:),x(2,:),'.')
+%     xest = (Rest'*(x - tt));
+    yest = (Rest'*x + repmat([ttx;tty],1,length(x)));
+    figure,plot(yest(1,:),yest(2,:),'.b',y(1,:),y(2,:),'r.')
+
+end
+
+
+
+
